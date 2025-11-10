@@ -1,0 +1,349 @@
+---
+title: "HRS Data Prep"
+format: html
+editor: visual
+---
+
+```{r}
+#libraries
+library(foreign)
+library(haven)
+library(dplyr)
+library(tidyverse)
+library(janitor)
+library(purrr)
+library(readxl)
+library(writexl)
+library(ggplot2)
+library(reshape2)
+library(ggtext)
+library(readr)
+library(psych)
+library(MASS)
+library(broom)
+library(googledrive)
+```
+
+# Read in data and merge with tracker file
+
+```{r}
+COG_IMP <- read_dta("COGIMP9220A_R.dta") 
+
+#add HHDPN for each respondent
+COG_IMP <- COG_IMP %>%
+  mutate(HHIDPN = paste0(HHID, PN)) %>%
+  relocate(HHIDPN, .before = 1)
+
+#merge with tracker file
+TRACKER <- read_dta("Tracker(trk2022tr)_r.dta")
+TRACKER <- TRACKER %>%
+  mutate(HHIDPN = paste0(HHID, PN)) %>%
+  relocate(HHIDPN, .before = 1)
+
+COG_IMP <- inner_join(TRACKER, COG_IMP, by = "HHIDPN")
+
+###getting to this step, COG_IMP has all data that we need 
+```
+
+# Recoding (numerics to factor variables)
+
+```{r}
+# recode numerical variables into factor variables
+
+COG_IMP$DEGREE <- as.factor(COG_IMP$DEGREE)
+
+COG_IMP$GENDER <- recode(COG_IMP$GENDER, `1` = "male", `2` = "female")
+COG_IMP$GENDER <- as.factor(COG_IMP$GENDER)
+```
+
+# Recoding outcome variables to reverse the scale options, so 5 represent Excellent
+
+```{r}
+# year 2020
+COG_IMP$R15SLFMEM <- recode(COG_IMP$R15SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+COG_IMP$R15PSTMEM <- recode(COG_IMP$R15PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2018
+COG_IMP$R14SLFMEM <- recode(COG_IMP$R14SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+COG_IMP$R14PSTMEM <- recode(COG_IMP$R14PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2016
+COG_IMP$R13SLFMEM <- recode(COG_IMP$R13SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+
+COG_IMP$R13PSTMEM <- recode(COG_IMP$R13PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2014
+COG_IMP$R12SLFMEM <- recode(COG_IMP$R12SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+
+COG_IMP$R12PSTMEM <- recode(COG_IMP$R12PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2012
+COG_IMP$R11SLFMEM <- recode(COG_IMP$R11SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+
+COG_IMP$R11PSTMEM <- recode(COG_IMP$R11PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2010
+COG_IMP$R10SLFMEM <- recode(COG_IMP$R10SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+
+COG_IMP$R10PSTMEM <- recode(COG_IMP$R10PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2008
+COG_IMP$R9SLFMEM <- recode(COG_IMP$R9SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+
+COG_IMP$R9PSTMEM <- recode(COG_IMP$R9PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2006
+COG_IMP$R8SLFMEM <- recode(COG_IMP$R8SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+
+COG_IMP$R8PSTMEM <- recode(COG_IMP$R8PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2004
+COG_IMP$R7SLFMEM <- recode(COG_IMP$R7SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+
+COG_IMP$R7PSTMEM <- recode(COG_IMP$R7PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2002
+COG_IMP$R6SLFMEM <- recode(COG_IMP$R6SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+
+COG_IMP$R6PSTMEM <- recode(COG_IMP$R6PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+
+# year 2000
+COG_IMP$R5SLFMEM <- recode(COG_IMP$R5SLFMEM,
+                             `1` = 5,
+                             `2` = 4,
+                             `3` = 3,
+                             `4` = 2,
+                             `5` = 1)
+
+COG_IMP$R5PSTMEM <- recode(COG_IMP$R5PSTMEM,
+                             `1` = 3,
+                             `2` = 2,
+                             `3` = 1)
+```
+
+# Creating the new clean dataset for future steps
+
+```{r}
+# vector of wave numbers
+waves <- 5:15
+
+# build variable names
+slfmem_vars <- paste0("R", waves, "SLFMEM")
+fslfmem_vars <- paste0("R", waves, "FSLFMEM")
+pstmem_vars <- paste0("R", waves, "PSTMEM")
+fpstmem_vars <- paste0("R", waves, "FPSTMEM")
+
+# Time-invariant covariates (should stay same for all waves)
+static_vars <- c("DEGREE", "SCHLYRS", "GENDER", "RACE")
+
+# Interview language
+iwlang_vars <- c("RIWLANG", "QIWLANG", "PIWLANG", "OIWLANG", "NIWLANG",
+                 "MIWLANG", "LIWLANG", "KIWLANG", "JIWLANG", "HIWLANG", 
+                 "GIWLANG")
+
+# Interview mode
+iwmode_vars <- c("PIWMODE", "OIWMODE", "NIWMODE", "MIWMODE", "LIWMODE",
+                 "KIWMODE", "JIWMODE", "HIWMODE", "GIWMODE", "RIWMODE", "QIWMODE")
+
+
+# Whether interviewed in the wave
+iwwave_vars <- c("RIWWAVE", "QIWWAVE", "PIWWAVE", "OIWWAVE", "NIWWAVE",
+                 "MIWWAVE", "LIWWAVE", "KIWWAVE", "JIWWAVE", "HIWWAVE", 
+                 "GIWWAVE")
+
+
+# all vars together + ID
+vars_to_keep <- c("HHIDPN",
+                  slfmem_vars, fslfmem_vars,
+                  pstmem_vars, fpstmem_vars,
+                  static_vars,
+                  iwlang_vars,
+                  iwmode_vars,
+                  iwwave_vars)
+
+
+cog_clean <- COG_IMP %>% dplyr::select(all_of(vars_to_keep))
+
+# replace NA or empty values with 0
+cog_clean <- cog_clean %>%
+  mutate(across(everything(), ~replace(., is.na(.) | . == "", 0)))
+
+
+# write.csv(cog_clean, "cog_clean_wide.09.14.csv", row.names = FALSE)
+```
+
+```{r}
+# just some simple functions for counting 0 cases 
+summarise(across(c(R15FSLFMEM, R14FSLFMEM, R13FSLFMEM), ~sum(. == 0, na.rm = TRUE)))
+
+
+sum(cog_clean$RIWWAVE == 0, na.rm = TRUE)
+```
+
+# Reshaping dataset
+
+```{r}
+# Create wave mapping for letter-based columns (now includes all waves 5-15 for IWMODE)
+wave_letters <- c("G" = 5, "H" = 6, "J" = 7, "K" = 8, "L" = 9, 
+                  "M" = 10, "N" = 11, "O" = 12, "P" = 13, "Q" = 14, "R" = 15)
+```
+
+```{r}
+# Step 1: Process R-prefixed cognitive measures - ensure wave is numeric
+cog_memory <- cog_clean %>%
+  dplyr::select(HHIDPN, DEGREE, SCHLYRS, GENDER, RACE, matches("^R\\d+(SLFMEM|FSLFMEM|PSTMEM|FPSTMEM)")) %>%
+  pivot_longer(
+    cols = -c(HHIDPN, DEGREE, SCHLYRS, GENDER, RACE),
+    names_to = c("wave", "measure"),
+    names_pattern = "^R(\\d+)(.+)$",
+    values_to = "value"
+  ) %>%
+  mutate(wave = as.numeric(wave)) %>%  # Convert to numeric
+  pivot_wider(
+    names_from = measure,
+    values_from = value
+  )
+
+# Step 2: Process IWLANG columns - ensure wave is numeric
+cog_iwlang <- cog_clean %>%
+   dplyr::select(HHIDPN, matches("^[A-Z]IWLANG$")) %>%
+  pivot_longer(
+    cols = -HHIDPN,
+    names_to = "wave_letter",
+    values_to = "IWLANG",
+    names_pattern = "^([A-Z])IWLANG$"
+  ) %>%
+  mutate(wave = as.numeric(recode(wave_letter, !!!wave_letters))) %>%  # Convert to numeric
+   dplyr::select(HHIDPN, wave, IWLANG)
+
+# Step 3: Process IWWAVE columns - ensure wave is numeric
+cog_iwwave <- cog_clean %>%
+   dplyr::select(HHIDPN, matches("^[A-Z]IWWAVE$")) %>%
+  pivot_longer(
+    cols = -HHIDPN,
+    names_to = "wave_letter",
+    values_to = "IWWAVE",
+    names_pattern = "^([A-Z])IWWAVE$"
+  ) %>%
+  mutate(wave = as.numeric(recode(wave_letter, !!!wave_letters))) %>%  # Convert to numeric
+   dplyr::select(HHIDPN, wave, IWWAVE)
+
+# Step 4: Process IWMODE columns - ensure wave is numeric (NOW INCLUDES WAVES 14-15)
+cog_iwmode <- cog_clean %>%
+   dplyr::select(HHIDPN, matches("^[A-Z]IWMODE$")) %>%
+  pivot_longer(
+    cols = -HHIDPN,
+    names_to = "wave_letter",
+    values_to = "IWMODE",
+    names_pattern = "^([A-Z])IWMODE$"
+  ) %>%
+  mutate(wave = as.numeric(recode(wave_letter, !!!wave_letters))) %>%  # Convert to numeric
+   dplyr::select(HHIDPN, wave, IWMODE)
+
+# Step 5: Join all datasets together (now all waves are numeric)
+cog_long <- cog_memory %>%
+  full_join(cog_iwlang, by = c("HHIDPN", "wave")) %>%
+  full_join(cog_iwwave, by = c("HHIDPN", "wave")) %>%
+  full_join(cog_iwmode, by = c("HHIDPN", "wave")) %>%
+  arrange(HHIDPN, wave)
+
+```
+
+```{r}
+write.csv(cog_long, "cog_clean_wide.09.15.csv", row.names = FALSE)
+
+```
+
+```{r}
+cat("Original wide dataset:\n")
+cat("Rows:", nrow(cog_clean), "Columns:", ncol(cog_clean), "\n")
+
+cat("Long dataset:\n")
+cat("Rows:", nrow(cog_long), "Columns:", ncol(cog_long), "\n")
+cat("Unique individuals:", n_distinct(cog_long$HHIDPN), "\n")
+cat("Waves per individual (should be 11):", mean(table(cog_long$HHIDPN)), "\n")
+
+# Check if we have all 11 waves
+cat("Waves present:", sort(unique(cog_long$wave)), "\n")
+
+```

@@ -1,0 +1,337 @@
+---
+title: "Yao-687.HW1"
+format: pdf
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(lme4)
+library(nlme)
+library(lmerTest)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+```
+
+### Read in the data and have a basic of its structure
+
+```{r}
+load("hrs_wbbp_long.rda")
+# when reading csv, read.csv("name.csv")
+
+# model syntax: 
+mod1 <- lmer(bp_sys ~ year + (year|HHIDPN), REML = T, data = hrs_wbbp_long)
+summary(mod1)
+
+mod2 <- lmer(bp_sys ~ year + (1|HHIDPN), REML = T, data = hrs_wbbp_long)
+
+mod3<-lmer(bp_sys ~ year + RAGENDER + age_centered + (year|HHIDPN), REML=T, data = hrs_wbbp_long)
+
+```
+
+```{r}
+# Missing value check
+apply(is.na(hrs_wbbp_long), 2, sum)
+```
+
+```{r}
+str(hrs_wbbp_long) 
+```
+
+```{r}
+# Recode gender as factor because we want to treat it as a categorical variable
+hrs_wbbp_long <- hrs_wbbp_long %>%
+  mutate(RAGENDER = factor(RAGENDER, 
+                     levels = c(1, 2), 
+                     labels = c("Male", "Female")))
+
+str(hrs_wbbp_long)
+```
+
+```{r}
+# Overall statistics of the blood pressure level from the data set
+overall_sys <- summary(hrs_wbbp_long$bp_sys)
+overall_sys
+```
+
+### Question 1 code process
+
+```{r}
+# The first table shows a basic analysis of the outcome variable by number of years since first blood pressure measurement.
+
+# The second table shows a basic analysis of the outcome variable by number of years and gender since first blood pressure measurement.
+
+summary_table <- hrs_wbbp_long %>% group_by(year) %>% summarize(Mean_bp = mean(bp_sys),
+SD_bq=sd(bp_sys),
+ Min_bq=min(bp_sys),
+ Max_bq=max(bp_sys),
+ N=n()
+ )
+
+summary_table
+```
+
+```{r}
+summary_table_gender <- hrs_wbbp_long %>% group_by(year, RAGENDER) %>% summarize(Mean_bp = mean(bp_sys),
+SD_bq=sd(bp_sys),
+ Min_bq=min(bp_sys),
+ Max_bq=max(bp_sys),
+ N=n()
+ )
+
+summary_table_gender
+
+```
+
+```{r}
+# This graph shows how the mean blood pressure level changes over the number of years since the first measurement
+
+ggplot(data = summary_table, aes(x = year, y = Mean_bp)) +
+  geom_line(color = "black", size = 1) +
+  geom_point(size = 3) +
+  labs(
+    x = "Years Since First Measured",
+    y = "Mean bp"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+# This graph shows how the mean blood pressure level changes over the number of years since the first measurement, by gender
+
+ggplot(data = summary_table_gender, aes(x = year, y = Mean_bp, color = RAGENDER)) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  labs(
+    x = "Years Since First Measured",
+    y = "Mean BP",
+    color = "Gender"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("Male" = "blue", "Female" = "red"))
+
+```
+
+```{r}
+# We use the Spaghetti plot to visualize the data
+sample <- hrs_wbbp_long %>% distinct(HHIDPN) %>% sample_n(15) %>% pull(HHIDPN)
+
+hrs_wbbp_long$wave <- factor(hrs_wbbp_long$wave, levels = c(8, 10, 12, 14, 16))
+
+# With this spaghetti plot, we compare trajectories by gender across waves
+hrs_wbbp_long %>%
+  filter(HHIDPN %in% sample) %>%
+  ggplot(aes(x = wave, y = bp_sys, group = HHIDPN, color = factor(RAGENDER))) +
+  geom_line() +
+  geom_point() +
+  scale_color_manual(values = c("blue", "red"), 
+                     labels = c("Male", "Female"),
+                     name = "Gender")
+
+```
+
+### Question 1 interpretation
+
+-The first plot looks at everyone in our data set, and shows how the mean blood pressure level changes over the number of years since the first measurement.
+
+-It shows that there is a noticeable increase of the mean blood pressure roughly within the first 4 years since first measured, as it starts around 124.5 , keeps increasing, and it peaks around 127.6.
+
+-When entering the 4 year, the mean blood pressure declines and gets back to around 126.6 around the year of the 8th. Then the declining speed slows down and the mean blood pressure reaches below 126.5 after entering the 10the year.
+
+-The declines stops at around the 12.5th year, and starts rising again. It reaches right below 127.5 at the 16th year.
+
+-Note this is a balanced data set as each individual has the same number of observations.
+
+-The second plot looks at everyone in our data set, but by gender. It then shows how the mean blood pressure level changes over the number of years since the first measurement, in each gender category.
+
+-Females in general have a lower mean blood pressure across the years. Males' trajectories largely follow the pattern in the first plot. However, females' mean blood pressure level starts rising earlier, at around the 8th year.
+
+-The third plot, the Spaghetti plot, shows the 15 individuals sampled from the data set. They all have different trajectories with different intercepts and slopes, which indicates that we can examined within-subject and between-subject variabilities.
+
+### Question 2 code process
+
+```{r}
+mod1 <- lmer(bp_sys ~ year + (year|HHIDPN), REML = T, data = hrs_wbbp_long)
+
+summary(mod1)
+```
+
+### Question 2 code interpretation
+
+-This model takes systolic blood pressure as the DV and year as the IV. This allows both the predictive coefficient and the intercept to change. It also allows the relationship of number of years since the first measurement to vary across individuals.
+
+-Within-subject correlations can be accounted for by (year\|HHIDPN), as this is a repeatedly measured longitudinal data set. Different individuals are assumed to have a different borderline for blood pressure level.
+
+### Question 3 explain the model in notation
+
+The model equation is $y_{ij} = 125.58 + 0.12x_{ij} + \mu_{0j} + \mu_{1j}x_{ij} + e_{ij}$
+
+\-$y_{ij}$ is the outcome, which is the blood pressure level for person j and time i
+
+-x represents "number of years since first measurement", and I have beta1 for the individual-level predictor also as fixed effect.
+
+\-$\mu_{0j}$ is the mean bp level when year is 0 for person j
+
+\-$\mu_{1j}$ is the random slope
+
+\-$e_{ij}$ is error
+
+### Question 4 interpretation
+
+-Start with the fixed effects: the intercept is 125.58 mmHg, which means the average baseline systolic blood pressure level for the participants at the beginning of this study (when year is 0).
+
+-The coefficient of the regression for the predictor variable, year, is 0.12, which means the average amount of change in blood pressure across years for participants. Participants' systolic blood pressure is expected to increase by 0.12 mmHg every four years when being measured.
+
+-However, the p-value of the regression coefficient is 0.0979, larger than 0.05, so at this point we fail to reject the null hypothesis, and we are not able to conclude there is a relationship between number of years since the first measurement and the systolic blood pressure in the participants.
+
+-For random effects, the random slope has a standard deviation of 0.72, that means participants' blood pressure would vary by 0.72 mmHg over years.
+
+### Question 5 code process
+
+```{r}
+mod2 <- lmer(bp_sys ~ year + (1|HHIDPN), REML = T, data = hrs_wbbp_long)
+
+summary(mod2)
+```
+
+```{r}
+AIC(mod2)
+BIC(mod2)
+```
+
+-Likelihood ratio test is needed to test the null hypothesis that the variance of random year effects is 0. It will be performed to compare the full model with a reduced model that only has a random intercept.
+
+### Question 5 code interpretation
+
+-In the model, mod2, we still have the covariant to the fixed effect, but it now has only the random intercept without the random coefficient. All participants now start at different blood pressure (first-time measurement), but the relationship of year does not vary across participants. This helps to test the variance of the slopes. We just take the second random effect out of it.
+
+-In other words, now we are comparing this reduced model with the full model which is mod1. We will need to custom function.
+
+-Null hypothesis: the variance of the random effect (sigma sqauare 1) is zero. -Alternate hypothesis: the variance of the random effect (sigma sqauare 1) is greater than zero.
+
+```{r}
+lrt.pvalue <- function(fit1, fit2) {
+  lrtstat <-
+    (-2 * as.numeric(summary(fit2)$logLik)) - (-2 * as.numeric(summary(fit1)$logLik))
+  pvalue = 0.5 * (1 - pchisq(lrtstat, 2)) + 0.5 * (1 - pchisq(lrtstat, 1))
+  return(pvalue)
+}
+```
+
+```{r}
+lrt.pvalue(mod1, mod2)
+```
+
+-We are able to reject the null hypothesis that sigma square1 is 0. The rate of blood pressure level varies among participants.
+
+### Question 6 code process
+
+```{r}
+# We need to center the age_y column as age at 0 doesn't make sense for interpreting the intercept.
+mean_age <- mean(hrs_wbbp_long$age_y, na.rm = TRUE)
+mean_age
+
+hrs_wbbp_long <- hrs_wbbp_long %>%
+  mutate(age_centered = age_y - mean_age)
+
+```
+
+```{r}
+mod3<-lmer(bp_sys ~ year + RAGENDER + age_centered + (year|HHIDPN), REML=T,
+           data = hrs_wbbp_long)
+
+summary(mod3)
+
+```
+
+### Question 7 interpretation for model from Question 6
+
+-We add baseline age and gender to as fixed effect predictors to the new model, mod3. Note, we have centered age_y and created age_centered column. The mean starting age is 66.77, and this adds meaning for interpreting the intercept of the fixed effect.
+
+-Start with fixed effects: the intercept here is 133.7 mmHg, which means the average baseline(year0) systolic blood pressure level for male participants at age 66.77.
+
+-The coefficient of the regression for the predictor variable, year, is -0.6352mmHg, which means the average amount of change in blood pressure across years for participants, assuming other variables' effects are held constant.
+
+-The coefficient of the regression for the predictor variable, gender, is -3.78mmHg, which means on average female participants are expected to have that amount of level lower than male participants, assuming other variables' effects are held constant.
+
+-The coefficient of the regression for the predictor variable, age, is 0.75mmHg, which means the average amount of change in blood pressure for every 1 year increase from the average starting age, assuming other variables' effects are held constant.
+
+-All p-values for each coefficient of fixed effect are smaller than 0.05 so they are statistically significant.
+
+-Then let's look at random effects. The random intercept variance is 170.77, with a standard deviation of 13.07. This means that participants' baseline blood pressure level varies +/- 13.05 mmHg around the mean baseline level of 170.77 mmHg.
+
+-The random slope variance is 0.51 with a standard deviation of 0.71. This means that participants' blood pressure change rate might vary by 0.71 mmHg around 0.51 mmhg every four years.
+
+-The residual variance is 162.17. This accounts for the variability that is not explained by the fixed and random effects.
+
+### Question 8 interpretation
+
+-Before starting coding for Question 7, I have already centered the age_y variable, which is the age in that given wave. It's handled by subtracting the mean age from each individual's age. If I hadn't done it, the understanding of the regression coefficient of age wouldn't make sense.
+
+-I am not sure whether both year and age should be kept. I think it depends on what we try to measure.
+
+-year here means how many years it has been since the participant first got measured, and age means how old they were when they got measured. Also, we have wave in the data set which also indicates the four-year span. If we just want to see how blood pressure level changes as they get older, either year or age would give similar answer.
+
+-But, year only has 5 levels(applies to each participant) and measures within-individual variability, but age can help measure between-individual variability, which can capture the aging effect through a life course.
+
+### Question 9 code process
+
+```{r}
+# Residual plot for mod1
+plot(fitted(mod1), residuals(mod1))
+abline(h = 0, col = "red")
+```
+
+```{r}
+# Residual plot for mod1
+plot(fitted(mod3), residuals(mod3))
+abline(h = 0, col = "red")
+```
+
+```{r}
+# Q-Q plot for mod1
+qqnorm(residuals(mod1))
+qqline(residuals(mod1))
+```
+
+```{r}
+# Q-Q plot for mod3
+qqnorm(residuals(mod3))
+qqline(residuals(mod3))
+```
+
+```{r}
+AIC(mod1)
+AIC(mod3)
+
+BIC(mod1)
+BIC(mod3)
+```
+
+```{r}
+anova(mod1, mod3)
+```
+
+### Question 9 code interpretation
+
+-The model from question 6, mod3, with gender and centered age, demonstrates lower AIC and BIC values. These indicate it to be a better model fit compared to the initial model, mod1.
+
+-The likelihood ratio test demonstrates 38.93 test statistic with a p-value smaller than 0.05. The indicates again the having gender and age included has improve the model fit.
+
+### Question 10 interpretation
+
+-With this study, we are hoping to achieve two goals: 1) how does systolic blood pressure change over time as people get older, by average; 2) how much variance among participants is there in the trajectories of systolic blood pressure, and can this variance get explained by sex and age.
+
+-In the data set we have, there are 311 participants' blood pressure levels, that were collected every four years. The data set provides five consecutive waves, the blood pressure measured in each wave, along with each participant's age when measured, and their ID(HHIDPN)
+
+-To begin our analysis, we first applied a multilevel model that features systolic pressure as the dependent outcome variable and time(year) as the independent variable. The regression coefficient for the predictor here is 0.12, which means that participants’ systolic blood pressure is expected to increase by 0.12 mmHg every four years. However, this finding is statistically insignificant as the p-value is larger than 0.05. The random intercept's standard deviation of 14.27 tells us that participants' baseline blood pressure level can vary +/- 14.27 mmHg on average.
+
+-We then looked into testing the null hypothesis, on whether the variance of the random effect of the predictor is zero. We created a reduced model which only includes the random intercept but not the random coefficient. All participants, based on the reduced model, start at different blood pressure, but the relationship of year does not vary. We performed the likelihood ratio test to compare this reduced model with the previous full model. We were able to reject the null hypothesis due to the very small p-value. This helps us to believe that there is variance of random effects of year.
+
+-Following, we added gender and age(centered) as fixed effects to the model. WE have found all regression coefficients to be statistically significant. The random effects are also significant. The random intercept variance is 170.77, with a standard deviation of 13.07. This means that participants' baseline blood pressure level varies +/- 13.05 mmHg around the mean borderline level of 170.77 mmHg.
+
+-We have also ran diagnostics, such as QQ plot, AIC, and BIC, tp test whether this model would be a better fit. We finally came to the conclusion that the final model is a better fit.

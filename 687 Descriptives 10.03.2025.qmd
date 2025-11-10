@@ -1,0 +1,366 @@
+---
+title: "687 Descriptives 09.15.2025"
+format: pdf
+editor: visual
+---
+
+## 687 Descriptives
+
+From the syllabus: "presenting simple (yet appropriate) descriptive statistics for each of the variables."
+
+### Installing Necessary Packages and Reading in the Data
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggridges)
+library(gtsummary)
+library(ggplot2)
+#df_wide <- read.csv("cog_clean_wide.09.14.csv")
+df_long <- read.csv("cog_clean_long.09.15.csv") # by far most updated data set
+```
+
+## Dealing with Missing Values
+
+### Count Ns
+
+```{r}
+# just make sure certian variables are re-coded corretly
+df_long <- df_long %>%
+  mutate(SLFMEM = as.numeric(SLFMEM))
+
+df_long <- df_long %>%
+  mutate(SCHLYRS = as.numeric(SCHLYRS))
+
+df_long <- df_long %>%
+  mutate(DEGREE = as.factor(DEGREE))
+
+df_long <- df_long %>%
+  mutate(GENDER = as.factor(GENDER))
+
+df_long <- df_long %>%
+  mutate(RACE = as.factor(RACE))
+
+df_long <- df_long %>%
+  mutate(IWMODE = as.factor(IWMODE))
+
+df_long <- df_long %>%
+  mutate(IWLANG = as.factor(IWLANG))
+
+# Find out how many respondents have and have not valid outcomes across ALL waves
+result <- df_long %>%
+  group_by(HHIDPN) %>%
+  summarize(
+    wave_count = n(),
+    all_waves_present = n() == 11,
+    all_valid_non_zero = all(!is.na(SLFMEM) & SLFMEM != 0),
+    any_missing = any(is.na(SLFMEM)),
+    any_zero = any(SLFMEM == 0, na.rm = TRUE)
+  )
+
+result %>%
+  count(all_waves_present, all_valid_non_zero)
+
+df_long %>%
+  group_by(HHIDPN) %>%
+  summarize(all_valid = all(!is.na(SLFMEM) & SLFMEM != 0)) %>%
+  count(all_valid)
+```
+
+### Making Dataset for both only-Valid and only-Invalid
+
+```{r}
+# We start by finding HHIDPNs whose SLFMEM is 0 for at least 1 wave
+zero_or_na_slfmem_ids <- df_long %>%
+  group_by(HHIDPN) %>%
+  summarize(has_zero_or_na = any(SLFMEM == 0, na.rm = TRUE) | any(is.na(SLFMEM))) %>%
+  filter(has_zero_or_na == TRUE) %>%
+  pull(HHIDPN)
+```
+
+```{r}
+# Create a data set for those who have at least one 0 in any wave
+df_all_zeros <- df_long %>% filter(HHIDPN %in% zero_or_na_slfmem_ids)
+
+# Create a data set for those who have a valid value in any wave
+df_long_filtered <- df_long %>% filter(!HHIDPN %in% zero_or_na_slfmem_ids)
+
+# Thought I'd run this 
+library(lme4)
+library(nlme)
+library(lmerTest)
+
+mod1 = lmer(SLFMEM ~ 1 + (1|HHIDPN), REML = T, data = df_long_filtered) 
+rand(mod1)
+```
+
+### Crosstab Summary for the Invalid data set (those who are dropped)
+
+```{r}
+# Step 1: Take one row per person (e.g., first wave)
+person_level <- df_all_zeros %>%
+  group_by(HHIDPN) %>%
+  slice(1) %>%  # Takes the first row for each person
+  ungroup()
+
+# Step 2: Create characteristic variables (adjust based on your coding)
+char <- person_level %>%
+  mutate(
+    Race = factor(RACE),  # Adjust factor levels as needed
+    Gender = factor(GENDER),  # e.g., 1 = Male, 2 = Female
+    Education = factor(DEGREE),  # Adjust levels
+    SchoolYears = SCHLYRS,
+    Interview_Language = factor(IWLANG),
+    Interview_Mode = factor(IWMODE)
+  ) %>%
+  select(Race, Gender, Education, SchoolYears, Interview_Language, Interview_Mode)
+
+# Step 3: Create summary table
+char %>%
+  tbl_summary(
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",  # For SCHLYRS if continuous
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    label = list(
+      Race = "Race",
+      Gender = "Gender",
+      Education = "Education Level",
+      SchoolYears = "School Years",
+      Interview_Language = "Interview Language",
+      Interview_Mode = "Interview Mode"
+    ),
+    missing = "no"
+  ) %>%
+  modify_header(label = "**Characteristic**") %>%
+  bold_labels()
+```
+
+## updated table 11.1
+
+```{r}
+person_level <- df_all_zeros %>%
+  group_by(HHIDPN) %>%
+  slice(1) %>%
+  ungroup()
+
+char <- person_level %>%
+  mutate(
+    Gender = case_when(
+      is.na(GENDER) | GENDER == "" ~ "Unknown",
+      tolower(GENDER) == "male" ~ "Male",
+      tolower(GENDER) == "female" ~ "Female",
+      TRUE ~ "Unknown"
+    ) %>% factor(levels = c("Unknown", "Male", "Female")),
+    Race = factor(RACE, levels = c(0, 1, 2, 7),
+                  labels = c("Not Obtained", "White/Caucasian", 
+                             "Black or African American", "Other")),
+    SchoolYears = case_when(
+      SCHLYRS == 0 ~ "No Formal Education",
+      SCHLYRS >= 1 & SCHLYRS <= 11 ~ "1-11 Grades",
+      SCHLYRS == 12 ~ "High School",
+      SCHLYRS >= 13 & SCHLYRS <= 15 ~ "Some College",
+      SCHLYRS == 16 ~ "College Graduate",
+      SCHLYRS >= 17 ~ "Post College (17+ Years)",
+      SCHLYRS == 99 | is.na(SCHLYRS) ~ "Missing",
+      TRUE ~ "Missing"
+    ),
+    SchoolYears = factor(SchoolYears, levels = c(
+      "No Formal Education", "1-11 Grades",
+      "High School", "Some College",
+      "College Graduate", "Post College (17+ Years)", "Missing"),
+      ordered = TRUE),
+    Interview_Language = factor(IWLANG, levels = c(0, 1, 2),
+                               labels = c("Blank", "English", "Spanish")),
+    Interview_Mode = case_when(
+      IWMODE == 8 | is.na(IWMODE) ~ "Missing",
+      IWMODE == 1 ~ "Face to Face",
+      IWMODE == 2 ~ "Telephone",
+      IWMODE == 3 ~ "Web",
+      TRUE ~ "Missing"
+    ) %>% factor(levels = c("Face to Face", "Telephone", "Web", "Missing"))
+  ) %>%
+  select(Race, Gender, SchoolYears, Interview_Language, Interview_Mode)
+
+# View structure for troubleshooting
+str(char)
+
+# Final summary table
+char %>%
+  tbl_summary(
+    statistic = list(all_categorical() ~ "{n} ({p}%)"),
+    label = list(
+      Race = "Race",
+      Gender = "Gender",
+      SchoolYears = "School Years",
+      Interview_Language = "Interview Language",
+      Interview_Mode = "Interview Mode"
+    ),
+    missing_text = "Missing",
+    missing = "ifany"
+  ) %>%
+  modify_header(label = "**Characteristic**") %>%
+  bold_labels()
+```
+
+```{r}
+tab_race <- char %>% tabyl(Race)
+tab_gender <- char %>% tabyl(Gender)
+tab_schoolyears <- char %>% tabyl(SchoolYears)
+tab_language <- char %>% tabyl(Interview_Language)
+tab_mode <- char %>% tabyl(Interview_Mode)
+
+# Each tabyl returns a data frame of counts and percents,
+# You can print individually or bind into one table (with some cleaning for beautiful display):
+
+# For illustration: show all together (not publication-ready, but clear)
+list(
+  Race = tab_race,
+  Gender = tab_gender,
+  SchoolYears = tab_schoolyears,
+  Interview_Language = tab_language,
+  Interview_Mode = tab_mode
+)
+
+
+```
+
+## Variables
+
+### Look at each demographic variable
+
+```{r}
+# 1) Number of all unique HHIDPNs in original dataset
+original_unique <- length(unique(df_long$HHIDPN))
+cat("1) Unique HHIDPNs in original dataset:", original_unique, "\n")
+
+# 2) Number of all unique HHIDPNs in df_all_zeros
+zeros_unique <- length(unique(df_all_zeros$HHIDPN))
+cat("2) Unique HHIDPNs in all-zeros dataset:", zeros_unique, "\n")
+
+# 3) Number of all unique HHIDPNs in filtered dataset  
+filtered_unique <- length(unique(df_long_filtered$HHIDPN))
+cat("3) Unique HHIDPNs in filtered dataset:", filtered_unique, "\n")
+
+```
+
+```{r}
+# GENDER distribution
+cat("GENDER distribution:\n")
+cat("=== All Zeros Dataset ===\n")
+table(df_all_zeros$GENDER) %>% print()
+cat("=== Filtered Dataset ===\n")
+table(df_long_filtered$GENDER) %>% print()
+
+
+```
+
+```{r}
+# DEGREE distribution  
+cat("\nDEGREE distribution:\n")
+cat("=== All Zeros Dataset ===\n")
+table(df_all_zeros$DEGREE) %>% print()
+cat("=== Filtered Dataset ===\n")
+table(df_long_filtered$DEGREE) %>% print()
+
+# RACE distribution
+cat("\nRACE distribution:\n")
+cat("=== All Zeros Dataset ===\n")
+table(df_all_zeros$RACE) %>% print()
+cat("=== Filtered Dataset ===\n")
+table(df_long_filtered$RACE) %>% print()
+
+# IWLANG distribution
+cat("\nIWLANG distribution:\n")
+cat("=== All Zeros Dataset ===\n")
+table(df_all_zeros$IWLANG) %>% print()
+cat("=== Filtered Dataset ===\n")
+table(df_long_filtered$IWLANG) %>% print()
+
+# IWMODE distribution
+cat("\nIWMODE distribution:\n")
+cat("=== All Zeros Dataset ===\n")
+table(df_all_zeros$IWMODE) %>% print()
+cat("=== Filtered Dataset ===\n")
+table(df_long_filtered$IWMODE) %>% print()
+```
+
+### Look at distribution of DV
+
+#### Boxplot
+
+```{r}
+ggplot(df_long_filtered, aes(x = factor(wave), y = SLFMEM)) +
+  geom_boxplot(fill = "lightblue", alpha = 0.7) +
+  labs(x = "Wave", y = "Dependent Variable", 
+       title = "Distribution of DV by Wave") +
+  theme_minimal()
+```
+
+#### density ridges
+
+```{r}
+ggplot(df_long_filtered, aes(x = SLFMEM, y = factor(wave), fill = factor(wave))) +
+  geom_density_ridges(alpha = 0.7) +
+  labs(x = "Dependent Variable", y = "Wave", 
+       title = "Distribution of DV Across Waves") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+#### Combined box-plot
+
+```{r}
+ggplot(df_long_filtered, aes(x = factor(wave), y = SLFMEM)) +
+  geom_jitter(alpha = 0.1, width = 0.2, color = "gray50") +  # Show individual points
+  stat_summary(fun = mean, geom = "point", size = 3, color = "red") +  # Mean
+  stat_summary(fun = mean, geom = "line", aes(group = 1), color = "red", size = 1) +  # Connect means
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, color = "red") +  # Error bars
+  labs(x = "Wave", y = "Dependent Variable", 
+       title = "Distribution of DV by Wave (with Mean ± SE)") +
+  theme_minimal()
+
+```
+
+#### spaghetti plot with sample of 20
+
+```{r}
+# Sample a subset of individuals to avoid overplotting
+set.seed(123)
+sample_ids <- sample(unique(df_long_filtered$HHIDPN), 20)  # Adjust sample size
+
+df_sample <- df_long_filtered %>%
+  filter(HHIDPN %in% sample_ids)
+
+mean_trajectory <- df_sample %>%
+  group_by(wave) %>%
+  summarise(mean_DV = mean(SLFMEM, na.rm = TRUE), .groups = "drop")
+
+# Plot with unique colors for each person
+ggplot(df_sample, aes(x = wave, y = SLFMEM, group = HHIDPN, color = factor(HHIDPN))) +
+  geom_line(size = 1, alpha = 0.7) +  # Individual trajectories
+  geom_point(size = 2, alpha = 0.7) +  # Add points on each line
+  geom_line(data = mean_trajectory, aes(y = mean_DV, group = 1), 
+            color = "black", size = 2, linetype = "dashed") +  # Mean trajectory
+  geom_point(data = mean_trajectory, aes(y = mean_DV, group = 1), 
+             color = "black", size = 4) +  # Mean points
+  labs(x = "Wave", 
+       y = "Dependent Variable", 
+       title = "Individual Trajectories with Mean Trend (Black Dashed)",
+       color = "Individual ID") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+```
+
+#### spaghetti plot by gender
+
+```{r}
+ggplot(df_long_filtered, aes(x = wave, y = SLFMEM, group = HHIDPN, color = GENDER)) +
+  geom_line(alpha = 0.3) +
+  labs(x = "Wave", y = "Dependent Variable", 
+       title = "Individual Trajectories by Gender") +
+  theme_minimal() +
+  scale_color_manual(values = c("steelblue", "coral"))
+
+```
